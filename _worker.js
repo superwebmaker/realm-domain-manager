@@ -2280,7 +2280,7 @@ var html = `<!DOCTYPE html>
 
         <!-- Main Content -->
         <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            
+
             <!-- Stats Row -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -2344,30 +2344,36 @@ var html = `<!DOCTYPE html>
             <div class="p-6 overflow-y-auto">
                 <form id="domain-form" class="space-y-5">
                     <input type="hidden" id="domain-id">
-                    
+
                     <div>
                         <label for="domain_name" class="block text-sm font-medium text-gray-700">Domain Name</label>
                         <input type="text" id="domain_name" required placeholder="example.com" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
                     </div>
-                    
+
                     <div>
                         <label for="registrar" class="block text-sm font-medium text-gray-700">Registrar</label>
                         <select id="registrar" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white">
                             <option value="" disabled selected>Loading...</option>
                         </select>
                     </div>
-                    
+
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label for="purchase_date" class="block text-sm font-medium text-gray-700">Purchase Date</label>
                             <input type="date" id="purchase_date" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
                         </div>
                         <div>
-                            <label for="expiration_date" class="block text-sm font-medium text-gray-700">Expiration Date</label>
-                            <input type="date" id="expiration_date" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                            <div class="flex justify-between items-center">
+                                <label for="expiration_date" class="block text-sm font-medium text-gray-700">Expiration Date</label>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="no_expiration" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" onchange="toggleExpirationDate()">
+                                    <label for="no_expiration" class="ml-2 block text-xs text-gray-500">Permanent</label>
+                                </div>
+                            </div>
+                            <input type="date" id="expiration_date" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-400">
                         </div>
                     </div>
-                    
+
                     <div>
                         <label for="notes" class="block text-sm font-medium text-gray-700">Notes (Optional)</label>
                         <textarea id="notes" rows="3" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
@@ -2395,7 +2401,7 @@ var html = `<!DOCTYPE html>
         document.addEventListener('DOMContentLoaded', async () => {
             const authRes = await fetch('/api/check-auth');
             const authData = await authRes.json();
-            
+
             if (authData.authenticated) {
                 showDashboard();
             } else {
@@ -2407,14 +2413,14 @@ var html = `<!DOCTYPE html>
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const password = document.getElementById('password').value;
-            
+
             try {
                 const res = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ password })
                 });
-                
+
                 if (res.ok) {
                     document.getElementById('password').value = '';
                     document.getElementById('login-error').classList.add('hidden');
@@ -2453,7 +2459,7 @@ var html = `<!DOCTYPE html>
                 if (res.ok) {
                     allowedRegistrars = await res.json();
                     const select = document.getElementById('registrar');
-                    select.innerHTML = '<option value="" disabled selected>Select a registrar</option>' + 
+                    select.innerHTML = '<option value="" disabled selected>Select a registrar</option>' +
                         allowedRegistrars.map(r => \`<option value="\${r}">\${r}</option>\`).join('');
                 }
             } catch (err) {
@@ -2477,30 +2483,34 @@ var html = `<!DOCTYPE html>
         }
 
         function calculateProgress(purchaseDateStr, expirationDateStr) {
+            if (!expirationDateStr) {
+                return { percentage: 100, daysLeft: Infinity, colorClass: 'bg-blue-500', textClass: 'text-blue-700' };
+            }
+
             const today = new Date();
             // Reset times to midnight for accurate day calculation
             today.setHours(0, 0, 0, 0);
-            
+
             const expiration = new Date(expirationDateStr);
-            
+
             // If dates are invalid, return defaults
             if (isNaN(expiration)) return { percentage: 0, daysLeft: 0, colorClass: 'bg-gray-300', textClass: 'text-gray-500' };
 
             const remaining = expiration - today;
             const daysLeft = Math.ceil(remaining / MS_PER_DAY);
-            
+
             // Progress bar total is fixed at 90 days
             // Value is based on remaining days
             let percentage = (daysLeft / 90) * 100;
             percentage = Math.max(0, Math.min(100, percentage));
-            
+
             // Color Logic
             // >= 60 days -> Green
             // < 60 days -> Yellow/Orange
             // < 30 days -> Red
             let colorClass = 'bg-green-500';
             let textClass = 'text-green-700';
-            
+
             if (daysLeft < 30) {
                 colorClass = 'bg-red-500';
                 textClass = 'text-red-700';
@@ -2522,21 +2532,22 @@ var html = `<!DOCTYPE html>
         function renderDomains() {
             const tbody = document.getElementById('domain-list');
             const emptyState = document.getElementById('empty-state');
-            
+
             if (domains.length === 0) {
                 tbody.innerHTML = '';
                 tbody.parentElement.classList.add('hidden');
                 emptyState.classList.remove('hidden');
                 return;
             }
-            
+
             tbody.parentElement.classList.remove('hidden');
             emptyState.classList.add('hidden');
-            
+
             tbody.innerHTML = domains.map(domain => {
                 const progress = calculateProgress(domain.purchase_date, domain.expiration_date);
-                const expiredText = progress.daysLeft <= 0 ? 'Expired' : \`\${progress.daysLeft} days left\`;
-                
+                const expiredText = progress.daysLeft === Infinity ? 'Permanent' : (progress.daysLeft <= 0 ? 'Expired' : \`\${progress.daysLeft} days left\`);
+                const dateText = progress.daysLeft === Infinity ? 'No Expiration' : new Date(domain.expiration_date).toLocaleDateString();
+
                 return \`
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap">
@@ -2558,7 +2569,7 @@ var html = `<!DOCTYPE html>
                         <td class="px-6 py-4 whitespace-nowrap w-1/3">
                             <div class="flex flex-col justify-center">
                                 <div class="flex justify-between text-xs mb-1">
-                                    <span class="text-gray-500">\${new Date(domain.expiration_date).toLocaleDateString()}</span>
+                                    <span class="text-gray-500">\${dateText}</span>
                                     <span class="font-medium \${progress.textClass}">\${expiredText}</span>
                                 </div>
                                 <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
@@ -2581,38 +2592,66 @@ var html = `<!DOCTYPE html>
 
         function updateStats() {
             document.getElementById('stat-total').textContent = domains.length;
-            
+
             let expiring = 0;
             let attention = 0;
             let safe = 0;
-            
+
             domains.forEach(d => {
                 const p = calculateProgress(d.purchase_date, d.expiration_date);
                 if (p.daysLeft >= 0 && p.daysLeft < 30) expiring++;
                 if (p.daysLeft >= 30 && p.daysLeft < 60) attention++;
-                if (p.daysLeft >= 60) safe++;
+                if (p.daysLeft >= 60 || p.daysLeft === Infinity) safe++;
             });
-            
+
             document.getElementById('stat-expiring').textContent = expiring;
             document.getElementById('stat-attention').textContent = attention;
             document.getElementById('stat-safe').textContent = safe;
         }
 
         // --- CRUD Operations ---
+        function toggleExpirationDate() {
+            const noExp = document.getElementById('no_expiration').checked;
+            const expDate = document.getElementById('expiration_date');
+            expDate.disabled = noExp;
+            if (noExp) {
+                expDate.required = false;
+                expDate.value = '';
+            } else {
+                expDate.required = true;
+                if (!expDate.value) {
+                    const today = new Date();
+                    today.setFullYear(today.getFullYear() + 1);
+                    expDate.value = today.toISOString().split('T')[0];
+                }
+            }
+        }
+
         function openModal(domain = null) {
             const modal = document.getElementById('domain-modal');
             const title = document.getElementById('modal-title');
             const form = document.getElementById('domain-form');
-            
+
             form.reset();
-            
+
             if (domain) {
                 title.textContent = 'Edit Domain';
                 document.getElementById('domain-id').value = domain.id;
                 document.getElementById('domain_name').value = domain.domain_name;
                 document.getElementById('registrar').value = domain.registrar;
                 document.getElementById('purchase_date').value = domain.purchase_date;
-                document.getElementById('expiration_date').value = domain.expiration_date;
+
+                const noExpCheckbox = document.getElementById('no_expiration');
+                const expDateInput = document.getElementById('expiration_date');
+                if (!domain.expiration_date) {
+                    noExpCheckbox.checked = true;
+                    expDateInput.value = '';
+                } else {
+                    noExpCheckbox.checked = false;
+                    expDateInput.value = domain.expiration_date;
+                }
+                toggleExpirationDate();
+
                 document.getElementById('notes').value = domain.notes || '';
             } else {
                 title.textContent = 'Add Domain';
@@ -2621,11 +2660,15 @@ var html = `<!DOCTYPE html>
                 const today = new Date();
                 const nextYear = new Date();
                 nextYear.setFullYear(today.getFullYear() + 1);
-                
+
                 document.getElementById('purchase_date').value = today.toISOString().split('T')[0];
+
+                const noExpCheckbox = document.getElementById('no_expiration');
+                noExpCheckbox.checked = false;
                 document.getElementById('expiration_date').value = nextYear.toISOString().split('T')[0];
+                toggleExpirationDate();
             }
-            
+
             modal.classList.add('active');
         }
 
@@ -2644,26 +2687,27 @@ var html = `<!DOCTYPE html>
                 form.reportValidity();
                 return;
             }
-            
+
             const id = document.getElementById('domain-id').value;
+            const noExp = document.getElementById('no_expiration').checked;
             const data = {
                 domain_name: document.getElementById('domain_name').value,
                 registrar: document.getElementById('registrar').value,
                 purchase_date: document.getElementById('purchase_date').value,
-                expiration_date: document.getElementById('expiration_date').value,
+                expiration_date: noExp ? '' : document.getElementById('expiration_date').value,
                 notes: document.getElementById('notes').value
             };
-            
+
             const url = id ? \`/api/domains/\${id}\` : '/api/domains';
             const method = id ? 'PUT' : 'POST';
-            
+
             try {
                 const res = await fetch(url, {
                     method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
-                
+
                 if (res.ok) {
                     closeModal();
                     fetchDomains();
